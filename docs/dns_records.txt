@@ -1,0 +1,174 @@
+============================================================
+  DNS SECURITY RECORDS — events.youruniversity.edu
+  Campus Event Portal — Network Security Assignment
+  Team: Fadil · Rafi · Akbar · Torikh
+============================================================
+
+DOMAIN    : events.youruniversity.edu
+PURPOSE   : Email authentication records to prevent phishing,
+            spoofing, and unauthorized use of the domain.
+
+------------------------------------------------------------
+1. SPF RECORD (Sender Policy Framework)
+   → Specifies which mail servers are authorized to send
+     email on behalf of this domain.
+------------------------------------------------------------
+
+Type : TXT
+Name : events.youruniversity.edu
+Value:
+  v=spf1 mx a ip4:203.0.113.10 include:_spf.google.com include:mailsender.youruniversity.edu -all
+
+Breakdown:
+  v=spf1                              → SPF version 1
+  mx                                  → Allow MX record servers to send mail
+  a                                   → Allow A record (domain's own IP) to send mail
+  ip4:203.0.113.10                    → Authorize specific mail server IP (fictional)
+  include:_spf.google.com             → Allow Google Workspace (if used for email)
+  include:mailsender.youruniversity.edu → Allow university's central mail system
+  -all                                → HARD FAIL — reject all other senders
+                                        (use ~all for SOFT FAIL during testing)
+
+Why -all vs ~all:
+  -all  = Strict. Unauthorized senders are rejected outright. Use in production.
+  ~all  = Soft fail. Unauthorized senders are marked but not rejected. Use during testing.
+  +all  = NEVER USE. Allows anyone to send as your domain.
+
+------------------------------------------------------------
+2. DKIM RECORD (DomainKeys Identified Mail)
+   → Cryptographic signature added to outgoing emails.
+     Receiving servers verify the signature to confirm
+     the email has not been tampered with in transit.
+------------------------------------------------------------
+
+Type : TXT
+Name : mail2024._domainkey.events.youruniversity.edu
+       ↑ Selector: "mail2024" (can be any label; used to
+         rotate keys without downtime)
+Value:
+  v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2a7T...
+  [truncated — full 2048-bit RSA public key goes here]
+
+Full Example Value (with placeholder key):
+  v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxyz123ABCDEF...endofpublickey==
+
+Breakdown:
+  v=DKIM1   → DKIM version
+  k=rsa     → Key type (RSA; ed25519 is more modern and shorter)
+  p=...     → Base64-encoded public key (private key stored on mail server)
+
+Key Management Notes:
+  - Use 2048-bit RSA minimum (4096-bit recommended)
+  - Rotate keys every 6–12 months using a new selector
+  - Private key MUST be stored securely on the mail server only
+  - Never expose the private key
+
+How to Generate (reference command — run on mail server):
+  openssl genrsa -out dkim_private.key 2048
+  openssl rsa -in dkim_private.key -pubout -out dkim_public.key
+
+------------------------------------------------------------
+3. DMARC RECORD (Domain-based Message Authentication,
+                 Reporting and Conformance)
+   → Tells receiving servers what to do when SPF or DKIM
+     checks fail. Also requests aggregate/forensic reports.
+------------------------------------------------------------
+
+Type : TXT
+Name : _dmarc.events.youruniversity.edu
+Value:
+  v=DMARC1; p=reject; sp=reject; adkim=s; aspf=s; pct=100; rua=mailto:dmarc-reports@youruniversity.edu; ruf=mailto:dmarc-forensics@youruniversity.edu; fo=1
+
+Breakdown:
+  v=DMARC1                                    → DMARC version
+  p=reject                                    → POLICY: reject emails that fail DMARC
+                                                (use p=none for monitoring, p=quarantine
+                                                 to send to spam during transition)
+  sp=reject                                   → Subdomain policy: same as parent (reject)
+  adkim=s                                     → DKIM alignment: strict (From domain must
+                                                exactly match DKIM d= domain)
+  aspf=s                                      → SPF alignment: strict (From domain must
+                                                exactly match SPF envelope-from domain)
+  pct=100                                     → Apply policy to 100% of failing emails
+                                                (lower % during testing, e.g. pct=10)
+  rua=mailto:dmarc-reports@youruniversity.edu → Aggregate reports sent here (daily summary)
+  ruf=mailto:dmarc-forensics@youruniversity.edu → Forensic reports (per-failure detail)
+  fo=1                                        → Send forensic report if SPF OR DKIM fails
+                                                (fo=0 = only if both fail)
+
+DMARC Rollout Strategy (Recommended):
+  Phase 1 — Monitor (Week 1–2):
+    p=none → Collect reports, no enforcement. Find legitimate senders.
+
+  Phase 2 — Quarantine (Week 3–4):
+    p=quarantine; pct=25 → Send 25% of failing mail to spam.
+    Gradually increase pct to 100.
+
+  Phase 3 — Reject (Production):
+    p=reject; pct=100 → Full enforcement. Failing emails are rejected.
+
+------------------------------------------------------------
+4. MX RECORD (Mail Exchange)
+   → Defines which servers accept email for this domain.
+     Required for SPF "mx" mechanism to work.
+------------------------------------------------------------
+
+Type     : MX
+Name     : events.youruniversity.edu
+Priority : 10
+Value    : mail.youruniversity.edu
+
+Type     : MX
+Name     : events.youruniversity.edu
+Priority : 20
+Value    : mail-backup.youruniversity.edu
+
+------------------------------------------------------------
+5. SUMMARY TABLE
+------------------------------------------------------------
+
+Record Type | Name                                        | Purpose
+------------|---------------------------------------------|---------------------------
+TXT (SPF)   | events.youruniversity.edu                   | Authorize sending servers
+TXT (DKIM)  | mail2024._domainkey.events.youruniversity.edu | Email signature verification
+TXT (DMARC) | _dmarc.events.youruniversity.edu            | Enforcement + reporting
+MX          | events.youruniversity.edu                   | Mail reception routing
+
+------------------------------------------------------------
+6. SECURITY RATIONALE — WHY ALL THREE ARE NECESSARY
+------------------------------------------------------------
+
+  SPF alone  → Can be bypassed via header spoofing (From: vs Envelope-From)
+  DKIM alone → Does not prevent domain spoofing in the From: header
+  DMARC      → Ties SPF + DKIM together and enforces alignment on the From: header
+               (the header users actually see in their email client)
+
+  Without DMARC:
+    Attacker can craft: From: no-reply@events.youruniversity.edu
+    Even if SPF/DKIM pass for a different domain, user sees a trusted address.
+
+  With DMARC (strict alignment):
+    The From: domain MUST align with the SPF/DKIM authenticated domain.
+    Mismatch = policy applied (quarantine/reject).
+
+------------------------------------------------------------
+7. VERIFICATION COMMANDS (for reference)
+------------------------------------------------------------
+
+Check SPF:
+  dig TXT events.youruniversity.edu
+
+Check DKIM:
+  dig TXT mail2024._domainkey.events.youruniversity.edu
+
+Check DMARC:
+  dig TXT _dmarc.events.youruniversity.edu
+
+Online Tools:
+  - https://mxtoolbox.com/spf.aspx
+  - https://dkimvalidator.com/
+  - https://dmarcian.com/dmarc-inspector/
+
+============================================================
+END OF DNS RECORDS
+============================================================

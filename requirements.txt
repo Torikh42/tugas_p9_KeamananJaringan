@@ -1,0 +1,3 @@
+# Campus Event Portal — Security Demo
+# Python stdlib only — no external packages required
+# (bleach listed as optional enhancement)
