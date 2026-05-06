@@ -1,4 +1,7 @@
 # Campus Event Portal - Security Lab (Tugas P9)
+> [!NOTE]
+> Repository: [Torikh42/tugas_p9_KeamananJaringan](https://github.com/Torikh42/tugas_p9_KeamananJaringan)
+
 
 A demonstration web application built to fulfill the requirements of the Network Security assignment (Tugas P9). This portal simulates a campus event system allowing students to register for events and post comments, while highlighting critical web vulnerabilities and their secure countermeasures.
 
