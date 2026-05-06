@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Event Portal — Security Lab</title>
+    <meta name="description" content="Security lab demonstrating SQLi, XSS, and Broken Access Control vulnerabilities for the Campus Event Portal.">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- Background ambient glow -->
+<div class="glow-container">
+    <div class="glow-circle top-right"></div>
+    <div class="glow-circle bottom-left"></div>
+</div>
+
+<!-- ============================================================
+     HEADER — Two rows: [Logo | Mode Toggle] + [Nav Tabs]
+     ============================================================ -->
+<header>
+    <div class="header-top">
+        <div class="logo">
+            <span class="shield-icon">🛡️</span>
+            <h1>Campus Event Portal <span class="badge">Lab P9</span></h1>
+        </div>
+        <div class="mode-master">
+            <span id="mode-text">VULNERABLE</span>
+            <label class="switch" title="Toggle between Vulnerable and Secure mode">
+                <input type="checkbox" id="mode-toggle">
+                <span class="slider round"></span>
+            </label>
+            <span id="mode-text-secure">SECURE</span>
+        </div>
+    </div>
+    <nav class="header-nav" role="navigation">
+        <button onclick="showTab('matrix')"  class="nav-btn active" id="btn-matrix">0. Threat Matrix (Part A)</button>
+        <button onclick="showTab('sqli')"    class="nav-btn"        id="btn-sqli">1. Registration (SQLi)</button>
+        <button onclick="showTab('xss')"     class="nav-btn"        id="btn-xss">2. Comments (XSS)</button>
+        <button onclick="showTab('access')"  class="nav-btn"        id="btn-access">3. Access Control</button>
+        <button onclick="showTab('email')"   class="nav-btn"        id="btn-email">4. Email Security</button>
+    </nav>
+</header>
+
+<main>
+    <!-- =====================================================
+         TAB 0 — THREAT MATRIX (Part A Requirement)
+         ===================================================== -->
+    <section id="matrix-tab" class="tab-content active">
+        <div class="tab-header">
+            <h2>Threat Analysis Matrix</h2>
+            <p>Identification and prioritization of application-layer threats for the Campus Event Portal.</p>
+        </div>
+        <div class="card console-card">
+            <div class="card-header"><h3>Part A: Threat Identification (5-7 Vulnerabilities)</h3></div>
+            <div class="card-body" style="overflow-x: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Threat / Vulnerability</th>
+                            <th>OWASP Category</th>
+                            <th>Likelihood</th>
+                            <th>Impact</th>
+                            <th>Priority</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>SQL Injection</strong> in Event Registration</td>
+                            <td>A03:2021 Injection</td>
+                            <td>High</td>
+                            <td>Critical</td>
+                            <td><span class="status-indicator error">P1</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Stored XSS</strong> in Comment System</td>
+                            <td>A03:2021 Injection</td>
+                            <td>High</td>
+                            <td>High</td>
+                            <td><span class="status-indicator error">P1</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Predictable Session Tokens</strong></td>
+                            <td>A01:2021 Broken Access Control</td>
+                            <td>Medium</td>
+                            <td>High</td>
+                            <td><span class="status-indicator error">P2</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Unauthorized Admin Access</strong></td>
+                            <td>A01:2021 Broken Access Control</td>
+                            <td>Medium</td>
+                            <td>Critical</td>
+                            <td><span class="status-indicator error">P2</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Email Spoofing / Phishing</strong></td>
+                            <td>A07:2021 Identification & Auth</td>
+                            <td>High</td>
+                            <td>Medium</td>
+                            <td><span class="status-indicator pending">P3</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Plain-text Password Storage</strong></td>
+                            <td>A02:2021 Cryptographic Failures</td>
+                            <td>Low</td>
+                            <td>Critical</td>
+                            <td><span class="status-indicator pending">P3</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="alert warning" style="margin-top:1.5rem">
+            💡 <strong>Note for Presentation:</strong> These threats were identified using a "STRIDE" approach specifically for the student event ecosystem.
+        </div>
+    </section>
+    
+    <!-- =====================================================
+         TAB 1 — EVENT REGISTRATION (SQLi)
+         ===================================================== -->
+    <section id="sqli-tab" class="tab-content">
+        <div class="tab-header">
+            <h2>Event Registration — SQLi Demo</h2>
+            <p>Shows how unsanitized form input leads to SQL Injection on the registration endpoint.</p>
+        </div>
+        <div class="grid-container">
+            <div class="card glass">
+                <div class="card-header"><h3>Registration Form</h3></div>
+                <div class="card-body">
+                    <div class="input-group">
+                        <label for="reg-name">Full Name / Student ID</label>
+                        <input type="text" id="reg-name"
+                               placeholder="Try: ' OR '1'='1' -- ">
+                    </div>
+                    <div class="input-group">
+                        <label for="reg-password">Password</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="reg-password"
+                                   placeholder="e.g. wrongpassword">
+                            <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
+                                <span id="eye-icon">👁️</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="reg-event">Event</label>
+                        <input type="text" id="reg-event" value="Cybersecurity Seminar" readonly>
+                    </div>
+                    <button onclick="runRegistration()" class="primary-btn" id="reg-btn">
+                        Register for Event
+                    </button>
+                </div>
+            </div>
+
+            <div class="card console-card">
+                <div class="card-header">
+                    <h3>Backend Analysis</h3>
+                    <span class="status-indicator idle" id="sqli-status">IDLE</span>
+                </div>
+                <div class="card-body">
+                    <pre id="sqli-log" class="mono">Waiting for input...</pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- =====================================================
+         TAB 2 — EVENT COMMENT SYSTEM (XSS)
+         ===================================================== -->
+    <section id="xss-tab" class="tab-content">
+        <div class="tab-header">
+            <h2>Event Comment System — XSS Demo</h2>
+            <p>Demonstrates <strong>Input Sanitization</strong> (matching UML Activity Diagram).</p>
+        </div>
+        <div class="grid-container">
+            <div class="card glass">
+                <div class="card-header"><h3>Comments Section</h3></div>
+                <div class="card-body">
+                    <div id="comment-list" class="comment-container">
+                        <em style="color:#475569;font-size:0.85rem">No comments yet.</em>
+                    </div>
+                    <div class="input-group">
+                        <label for="comment-input">Post a comment</label>
+                        <textarea id="comment-input"
+                                  placeholder="Try: <img src=x onerror=alert('XSS!')>"></textarea>
+                    </div>
+                    <button onclick="addComment()" class="primary-btn" id="comment-btn">
+                        Post Comment
+                    </button>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header"><h3>Security Explanation</h3></div>
+                <div class="card-body">
+                    <div id="xss-explanation">
+                        <p class="warning-text">
+                            ⚠️ <strong>Vulnerable Mode:</strong> Input is stored raw in the database.
+                        </p>
+                    </div>
+                    <div class="payload-box">
+                        <strong>XSS Payload:</strong><br>
+                        <code>&lt;img src=x onerror=alert('XSS_Success')&gt;</code><br><br>
+                        <strong>Reflected Payload:</strong><br>
+                        <code>&lt;script&gt;alert(document.cookie)&lt;/script&gt;</code>
+                    </div>
+                    <div class="alert note" style="margin-top:1rem">
+                        💡 <strong>UML Alignment:</strong> In Secure mode, the backend uses <code>html.escape()</code> <em>before</em> saving to the DB.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- =====================================================
+         TAB 3 — BROKEN ACCESS CONTROL
+         ===================================================== -->
+    <section id="access-tab" class="tab-content">
+        <div class="tab-header">
+            <h2>Broken Access Control</h2>
+            <p>Scenario: Parameter Tampering vs Server-Side Role Validation.</p>
+        </div>
+        <div class="grid-container">
+            <div class="card glass">
+                <div class="card-header"><h3>Step 1: Identity Spoofing</h3></div>
+                <div class="card-body">
+                    <div class="alert warning">
+                        🚨 <strong>Attack:</strong> In Vulnerable mode, the attacker (student) simply adds <code>?role=admin</code> to the request to bypass checks.
+                    </div>
+                    <div class="input-group">
+                        <label>Target Identity</label>
+                        <select id="access-user" class="mono">
+                            <option value="student_01">student_01 (Regular Student)</option>
+                            <option value="admin_01">admin_01 (Authorized Admin)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Spoofed Role (Parameter Tampering)</label>
+                        <input type="text" id="access-role" value="admin" class="mono">
+                    </div>
+                    <button onclick="testAccess()" class="primary-btn" id="access-btn">
+                        Try Accessing /admin_dashboard
+                    </button>
+                </div>
+            </div>
+
+            <div class="card console-card">
+                <div class="card-header"><h3>Server Audit Log</h3></div>
+                <div class="card-body">
+                    <div id="access-result-box" class="alert" style="display:none;margin-bottom:1rem"></div>
+                    <pre id="access-log" class="mono">Waiting for access attempt...</pre>
+                    <div class="alert note" style="margin-top:1rem; font-size:0.8rem">
+                        <strong>Secure Logic:</strong> Server ignores the "role" parameter and checks the database record for <code>user_id</code>.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- =====================================================
+         TAB 4 — EMAIL SECURITY
+         ===================================================== -->
+    <section id="email-tab" class="tab-content">
+        <div class="tab-header">
+            <h2>Email Security &amp; Anti-Phishing</h2>
+            <p>Simulating <strong>SPF, DKIM, and DMARC</strong> Verification.</p>
+        </div>
+        <div class="grid-container">
+            <div class="card glass">
+                <div class="card-header"><h3>Email Inbox Simulation</h3></div>
+                <div class="card-body">
+                    <div class="input-group" style="margin-bottom:1rem">
+                        <label>Recipient Email</label>
+                        <input type="text" id="email-recipient" 
+                               placeholder="Try: target@uni.edu\nBcc: spy@evil.com" 
+                               value="student@youruniversity.edu">
+                    </div>
+                    <div class="input-group" style="margin-bottom:1rem">
+                        <label>Event Name (HTML/XSS)</label>
+                        <input type="text" id="email-event-name" 
+                               placeholder="Try: <img src=x onerror=alert('XSS')>" 
+                               value="Tech Symposium 2024">
+                    </div>
+                    <div class="input-group" style="margin-bottom:1.5rem">
+                        <label>Event Link (Open Redirect)</label>
+                        <input type="text" id="email-event-url" 
+                               placeholder="Try: https://evil.com/phishing" 
+                               value="https://events.youruniversity.edu/e/42">
+                    </div>
+
+                    <button onclick="previewEmail()" class="primary-btn" style="margin-bottom:1.5rem; width:100%">
+                        Check Incoming Notification
+                    </button>
+                    
+                    <div id="email-preview-card" class="email-card" style="display:none">
+                        <div class="email-header">
+                            <div id="email-from"></div>
+                            <div id="email-subject" style="font-weight:bold;font-size:1.1rem;margin-top:4px"></div>
+                        </div>
+                        <div class="email-meta-badges" id="email-badges"></div>
+                        <div class="email-body" id="email-body"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card console-card">
+                <div class="card-header"><h3>Technical Headers (DNS Analysis)</h3></div>
+                <div class="card-body">
+                    <pre id="email-header-log" class="mono" style="font-size:0.85rem">Click "Check Incoming" to analyze headers...</pre>
+                    <div class="dns-grid" style="margin-top:1.5rem">
+                        <div class="dns-record" title="Sender Policy Framework">
+                            <span class="dns-type">SPF (TXT)</span> 
+                            <code id="spf-record">v=spf1 ip4:203.0.113.10 include:_spf.google.com ~all</code>
+                        </div>
+                        <div class="dns-record" title="DomainKeys Identified Mail">
+                            <span class="dns-type">DKIM (TXT)</span> 
+                            <code id="dkim-record">v=DKIM1; k=rsa; p=MIIBIjANBgkqhki... (Public Key)</code>
+                        </div>
+                        <div class="dns-record" title="Domain-based Message Authentication">
+                            <span class="dns-type dmarc">DMARC (TXT)</span> 
+                            <code id="dmarc-record">v=DMARC1; p=quarantine; rua=mailto:security@youruniversity.edu</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script>
+    const modeToggle = document.getElementById('mode-toggle');
+    const modeText   = document.getElementById('mode-text');
+    const modeSecure = document.getElementById('mode-text-secure');
+
+    // Sync mode label colors when toggled
+    modeToggle.addEventListener('change', () => {
+        if (modeToggle.checked) {
+            modeText.style.color   = 'var(--text-dim)';
+            modeSecure.style.color = 'var(--success)';
+        } else {
+            modeText.style.color   = 'var(--error)';
+            modeSecure.style.color = 'var(--text-dim)';
+        }
+        // Auto-refresh comment rendering if on XSS tab
+        if (document.getElementById('xss-tab').classList.contains('active')) {
+            loadComments();
+        }
+    });
+
+    // Tab navigation
+    function showTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tab + '-tab').classList.add('active');
+        document.getElementById('btn-' + tab).classList.add('active');
+        if (tab === 'xss') loadComments();
+    }
+
+    // ============================================================
+    // TAB 1 — Registration (SQLi Demo)
+    // ============================================================
+    async function runRegistration() {
+        const name     = document.getElementById('reg-name').value.trim();
+        const password = document.getElementById('reg-password').value.trim();
+        const log      = document.getElementById('sqli-log');
+        const status   = document.getElementById('sqli-status');
+        const mode     = modeToggle.checked ? 'secure' : 'vulnerable';
+
+        if (!name) { log.innerText = '⚠ Input nama tidak boleh kosong.'; return; }
+
+        log.innerText = 'Sending request to /api/register...';
+        status.className = 'status-indicator pending';
+        status.innerText = 'BUSY';
+
+        try {
+            const res    = await fetch('/api/login', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ username: name, password: password || 'wrongpassword', mode })
+            });
+            const result = await res.json();
+
+            const httpCode   = result.status_code;
+            const sessionTok = result.headers?.['Set-Cookie'] ?? 'None';
+            const bodyMsg    = typeof result.body === 'object'
+                ? JSON.stringify(result.body)
+                : result.body;
+
+            let out = '';
+            out += `[MODE]           ${mode.toUpperCase()}\n`;
+            out += `[ENDPOINT]       POST /api/register\n`;
+            out += `[INPUT]          username="${name}"\n`;
+            out += `[INPUT]          password="${password || 'wrongpassword'}"\n`;
+            out += `─────────────────────────────────────\n`;
+            out += `[HTTP STATUS]    ${httpCode}\n`;
+            out += `[RESPONSE]       ${bodyMsg}\n`;
+            out += `[SESSION TOKEN]  ${sessionTok}\n`;
+
+            if (mode === 'vulnerable' && httpCode === 200) {
+                out += `\n⚠ INJECTION SUCCESSFUL — password check bypassed via '--' comment!\n`;
+            } else if (mode === 'secure' && httpCode === 400) {
+                out += `\n✅ Input rejected by validation regex before hitting the DB.\n`;
+            } else if (mode === 'secure' && httpCode === 401) {
+                out += `\n✅ Parameterized query ran, but no user matched — bypass prevented.\n`;
+            }
+
+            log.innerText = out;
+            status.className = 'status-indicator ' + (httpCode === 200 ? 'success' : 'error');
+            status.innerText = httpCode === 200 ? 'BYPASSED' : 'BLOCKED';
+        } catch (e) {
+            log.innerText = '❌ Connection error: ' + e.message;
+            status.className = 'status-indicator error';
+            status.innerText = 'ERROR';
+        }
+    }
+
+    // ============================================================
+    // TAB 2 — Comments (XSS Demo)
+    // ============================================================
+    async function loadComments() {
+        const list     = document.getElementById('comment-list');
+        const expl     = document.getElementById('xss-explanation');
+        const isSecure = modeToggle.checked;
+
+        expl.innerHTML = isSecure
+            ? `<p class="secure-text">✅ <strong>Secure Mode:</strong> Uses <code>textContent</code>. Scripts render as harmless plain text.</p>`
+            : `<p class="warning-text">⚠️ <strong>Vulnerable Mode:</strong> Uses <code>innerHTML</code>. Injected scripts <em>will execute</em>.</p>`;
+
+        list.innerHTML = '<em style="color:#475569;font-size:0.85rem">Loading...</em>';
+
+        try {
+            const res      = await fetch('/api/get_comments');
+            const comments = await res.json();
+
+            list.innerHTML = '';
+            if (comments.length === 0) {
+                list.innerHTML = '<em style="color:#475569;font-size:0.85rem">No comments yet. Post one above!</em>';
+                return;
+            }
+
+            comments.forEach(c => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'comment-item';
+
+                const author = document.createElement('strong');
+                author.style.color = 'var(--primary)';
+                author.innerText   = (c.username || 'Anonymous') + ': ';
+
+                const body = document.createElement('span');
+                if (isSecure) {
+                    body.textContent = c.comment; // ✅ SAFE
+                } else {
+                    body.innerHTML = c.comment;   // ⚠️ DANGEROUS — XSS vector
+                }
+
+                wrapper.appendChild(author);
+                wrapper.appendChild(body);
+                list.appendChild(wrapper);
+            });
+        } catch (e) {
+            list.innerHTML = '<em style="color:var(--error)">Error loading comments.</em>';
+        }
+    }
+
+    async function addComment() {
+        const text = document.getElementById('comment-input').value.trim();
+        if (!text) return;
+        const mode = modeToggle.checked ? 'secure' : 'vulnerable';
+        
+        await fetch('/api/add_comment', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ username: 'Student_Tester', comment: text, mode: mode })
+        });
+        document.getElementById('comment-input').value = '';
+        loadComments();
+    }
+
+    // ============================================================
+    // TAB 3 — Access Control Demo (UPDATED)
+    // ============================================================
+    async function testAccess() {
+        const username = document.getElementById('access-user').value;
+        const role     = document.getElementById('access-role').value;
+        const log      = document.getElementById('access-log');
+        const resBox   = document.getElementById('access-result-box');
+        const mode     = modeToggle.checked ? 'secure' : 'vulnerable';
+
+        log.innerText = `Sending request: GET /api/admin_dashboard?username=${username}&role=${role}&mode=${mode}`;
+        resBox.style.display = 'none';
+
+        try {
+            const res = await fetch(`/api/admin_dashboard?username=${username}&role=${role}&mode=${mode}`);
+            const data = await res.json();
+
+            resBox.style.display = 'block';
+            resBox.className = 'alert ' + (res.status === 200 ? 'success-text' : 'error-text');
+            resBox.style.background = res.status === 200 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+            resBox.style.border = '1px solid ' + (res.status === 200 ? 'var(--success)' : 'var(--error)');
+            resBox.innerHTML = `<strong>Status ${res.status}:</strong> ${data.message}`;
+
+            let audit = `[CLIENT CLAM]  role="${role}"\n`;
+            audit    += `[SERVER AUTH] mode="${mode}"\n`;
+            if (mode === 'secure') {
+                audit += `[DB CHECK]    Actual role for ${username} is verified by server.\n`;
+            } else {
+                audit += `[DB CHECK]    SKIPPED. Server trusted the client's role parameter.\n`;
+            }
+            log.innerText = audit;
+
+        } catch (e) {
+            log.innerText = '❌ Error connecting to server.';
+        }
+    }
+
+    // ============================================================
+    // TAB 4 — Email Security Demo (NEW)
+    // ============================================================
+    async function previewEmail() {
+        const card    = document.getElementById('email-preview-card');
+        const log     = document.getElementById('email-header-log');
+        const mode    = modeToggle.checked ? 'secure' : 'vulnerable';
+        const badges  = document.getElementById('email-badges');
+
+        // Clear previous results to prevent stale data perception
+        card.style.display = 'none';
+        log.innerText = 'Analyzing headers and simulating transmission...';
+        badges.innerHTML = '';
+
+        // Get inputs
+        const emailInput = document.getElementById('email-recipient').value;
+        const eventInput = document.getElementById('email-event-name').value;
+        const urlInput   = document.getElementById('email-event-url').value;
+
+        const email = encodeURIComponent(emailInput);
+        const event = encodeURIComponent(eventInput);
+        const url   = encodeURIComponent(urlInput);
+
+        try {
+            const res  = await fetch(`/api/email_preview?mode=${mode}&email=${email}&event=${event}&url=${url}`);
+            const data = await res.json();
+
+            card.style.display = 'block';
+            document.getElementById('email-from').innerText    = `From: ${data.from}`;
+            document.getElementById('email-subject').innerText = data.subject;
+            document.getElementById('email-body').innerHTML    = data.body;
+
+            // Add Security Status Badge
+            const statusBadge = document.createElement('span');
+            const statusClass = data.security_status === 'SECURE' ? 'badge-success' : 
+                              (data.security_status === 'BLOCKED' ? 'badge-error' : 'badge-warning');
+            statusBadge.className = `badge ${statusClass}`;
+            statusBadge.style.fontSize = '0.9rem';
+            statusBadge.style.padding = '6px 12px';
+            statusBadge.style.marginBottom = '12px';
+            statusBadge.style.display = 'inline-block';
+            statusBadge.innerText = `🛡️ SECURITY: ${data.security_status}`;
+            badges.appendChild(statusBadge);
+
+            let headerText = `--- EMAIL HEADERS ANALYSIS (${mode.toUpperCase()} MODE) ---\n`;
+            for (const [key, val] of Object.entries(data.headers)) {
+                const b = document.createElement('span');
+                const isPositive = val.includes('PASS') || val.includes('Enforced') || val.includes('Authenticated');
+                b.className = 'badge ' + (isPositive ? 'badge-success' : 'badge-error');
+                b.innerText = `${key}: ${val}`;
+                badges.appendChild(b);
+                headerText += `${key.padEnd(12)}: ${val}\n`;
+            }
+            log.innerText = headerText;
+
+            if (mode === 'vulnerable') {
+                if (data.headers['X-Injection-Status']) {
+                    log.innerText += '\n⚠ CRITICAL: Header Injection Successful! New headers were split.';
+                    console.warn('Exploit detected: Header Injection');
+                } else if (data.body.includes('<script') || data.body.includes('onerror=')) {
+                    log.innerText += '\n⚠ CRITICAL: HTML/XSS Payload allowed in email body.';
+                    console.warn('Exploit detected: XSS/HTML Injection');
+                } else if (urlInput.includes('evil.com') || urlInput.includes('attacker.com')) {
+                    log.innerText += '\n⚠ WARNING: Open Redirect! User will be sent to external site.';
+                    console.warn('Exploit detected: Open Redirect');
+                } else {
+                    log.innerText += '\n⚠ Mode Vulnerable: No security validation performed.';
+                }
+            } else {
+                if (data.security_status === 'BLOCKED') {
+                    log.innerText += '\n✅ SECURE: Malicious input was BLOCKED by server validation.';
+                    console.info('Security: Attack prevented.');
+                } else {
+                    log.innerText += '\n✅ SECURE: All authentication checks passed. Explicit trusted links.';
+                }
+            }
+
+        } catch (e) {
+            log.innerText = '❌ Error fetching email preview: ' + e.message;
+        }
+    }
+    // ============================================================
+    // UTILS
+    // ============================================================
+    function togglePasswordVisibility() {
+        const passInput = document.getElementById('reg-password');
+        const eyeIcon   = document.getElementById('eye-icon');
+        
+        if (passInput.type === 'password') {
+            passInput.type = 'text';
+            eyeIcon.innerText = '🙈';
+        } else {
+            passInput.type = 'password';
+            eyeIcon.innerText = '👁️';
+        }
+    }
+</script>
+
+</body>
+</html>

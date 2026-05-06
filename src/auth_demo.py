@@ -17,9 +17,10 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 # --- Mock Database/State ---
+# In a real app, this would be in a database table 'users'
 MOCK_USERS = {
-    "student_01": {"name": "Budi", "role": "student"},
-    "admin_01": {"name": "Admin Kampus", "role": "admin"}
+    "student_01": {"name": "Budi", "role": "student", "password": "password123"},
+    "admin_01": {"name": "Admin Kampus", "role": "admin", "password": "adminpassword"}
 }
 
 # --- VULNERABLE IMPLEMENTATION ---
