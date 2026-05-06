@@ -12,6 +12,7 @@ from sqli_demo import login_vulnerable, login_secure
 from xss_demo import add_comment, get_comments
 from auth_demo import get_user_role_from_db, MOCK_USERS
 from email_demo import get_email_preview_data
+from database import init_db
 import html
 
 PORT = 8000
@@ -147,6 +148,9 @@ class SecurityDemoHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data).encode('utf-8'))
 
 def run_server():
+    # Automatically initialize database if not exists
+    init_db()
+
     # Ensure static directory exists
     static_dir = os.path.join(os.path.dirname(__file__), 'static')
     if not os.path.exists(static_dir):
