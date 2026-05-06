@@ -427,5 +427,112 @@ def run_demo():
     print("#"*60 + "\n")
 
 
+def get_email_preview_data(mode: str, user_email: str, event_name: str, event_url: str):
+    """
+    Returns structured data for the web UI to display a preview of the email
+    that would be sent, including headers and security analysis.
+    """
+    # For the web demo, we treat the literal string "\n" as a real newline
+    # because standard HTML text inputs don't allow typing real newlines.
+    user_email = user_email.replace("\\n", "\n").replace("\\r", "\r")
+    event_url  = event_url.replace("\\n", "\n").replace("\\r", "\r")
+
+    if mode == 'secure':
+        try:
+            # Validate using existing logic
+            safe_email = validate_email_address(user_email)
+            safe_url = validate_redirect_url(event_url, ALLOWED_REDIRECT_DOMAIN)
+            safe_event_name = sanitize_display_text(event_name, max_length=150)
+            
+            # Construct preview
+            return {
+                "from": f"{SENDER_NAME} <{SENDER_ADDRESS}>",
+                "subject": f"[Campus Event Portal] Registration Confirmed: {safe_event_name}",
+                "security_status": "SECURE",
+                "security_score": 100,
+                "headers": {
+                    "SPF": "PASS (IP: 203.0.113.10)",
+                    "DKIM": "PASS (Signature Verified)",
+                    "DMARC": "PASS (Policy: Quarantine)",
+                    "TLS": "Enforced (STARTTLS)",
+                    "X-Auth": "Authenticated Sender"
+                },
+                "body": build_secure_html_body(safe_event_name, safe_url)
+            }
+        except ValueError as e:
+            # Return validation error as data
+            error_msg = str(e)
+            return {
+                "from": "SYSTEM",
+                "subject": "⚠️ SECURITY ALERT: Outbound Email Blocked",
+                "security_status": "BLOCKED",
+                "security_score": 0,
+                "headers": {
+                    "Security-Filter": "REJECTED",
+                    "Violation": error_msg.split(":")[0] if ":" in error_msg else "Policy Violation",
+                    "Status": "PREVENTED"
+                },
+                "body": f"""
+                <div style='font-family:sans-serif; border: 2px solid #ef4444; padding: 20px; border-radius: 8px; background: #fef2f2;'>
+                    <h2 style='color: #b91c1c; margin-top: 0;'>🚫 Security Policy Violation</h2>
+                    <p style='color: #7f1d1d;'>Our security filters detected and blocked a potential attack attempt.</p>
+                    <div style='background: #fee2e2; padding: 10px; border-radius: 4px; font-family: monospace; border: 1px solid #fecaca;'>
+                        <strong>Reason:</strong> {error_msg}
+                    </div>
+                    <p style='font-size: 12px; color: #991b1b; margin-top: 15px;'>
+                        The Secure Implementation (Part 2) uses strict input validation and domain whitelisting to prevent 
+                        Header Injection and Open Redirect attacks.
+                    </p>
+                </div>
+                """
+            }
+    else:
+        # Vulnerable mode: No validation, potential for injection
+        
+        # [V1] Simulate Header Injection display
+        headers = {
+            "SPF": "FAIL (Softfail)",
+            "DKIM": "None (Unsigned)",
+            "DMARC": "None",
+            "TLS": "None (Plaintext)",
+            "To": user_email
+        }
+        
+        injection_detected = False
+        # If newlines are detected, "break" the headers to show the injection
+        if "\n" in user_email or "\r" in user_email:
+            injection_detected = True
+            parts = re.split(r'[\n\r]+', user_email)
+            headers["To"] = parts[0]
+            for i, extra in enumerate(parts[1:]):
+                if ":" in extra:
+                    key, val = extra.split(":", 1)
+                    headers[f"Injected-{i+1} ({key.strip()})"] = val.strip()
+                else:
+                    headers[f"Injected-{i+1}"] = extra.strip()
+            headers["X-Injection-Status"] = "SUCCESSFUL (Header Splitting)"
+
+        # [V4] HTML Injection simulation in body
+        vulnerable_body = f"""
+        <html><body style="font-family: serif; background-color: #fff; padding: 10px;">
+            <div style="border-bottom: 1px solid #ccc; margin-bottom: 10px; padding-bottom: 5px;">
+                <p><strong>From:</strong> {SENDER_ADDRESS} (Unauthenticated)</p>
+            </div>
+            <p>You have registered for: <b>{event_name}</b></p>
+            <p>Click to confirm registration: <a href="{event_url}">{DOMAIN}/confirm</a></p>
+            <p style="font-size: 11px; color: #666;">--- This email was sent from a server with no identity verification ---</p>
+        </body></html>
+        """
+        
+        return {
+            "from": f"{SENDER_ADDRESS}",
+            "subject": f"Event Registration: {event_name}",
+            "security_status": "VULNERABLE",
+            "security_score": 30,
+            "headers": headers,
+            "body": vulnerable_body
+        }
+
+
 if __name__ == "__main__":
     run_demo()

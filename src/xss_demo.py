@@ -1,13 +1,22 @@
 import html
 from database import get_db_connection
 
-def add_comment(event_id, username, comment_text):
-    """Simulate adding a comment to the database."""
+def add_comment(event_id, username, comment_text, mode='vulnerable'):
+    """
+    Simulate adding a comment to the database.
+    If mode is 'secure', it sanitizes input before storage (matching UML).
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    final_text = comment_text
+    if mode == 'secure':
+        # [SECURE] Sanitize BEFORE saving (Input Validation Flow)
+        final_text = html.escape(comment_text)
+
     cursor.execute(
         "INSERT INTO comments (event_id, username, comment) VALUES (?, ?, ?)",
-        (event_id, username, comment_text)
+        (event_id, username, final_text)
     )
     conn.commit()
     conn.close()
